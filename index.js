@@ -33,7 +33,20 @@ particle.login({ username: process.env.PARTICLE_EMAIL, password: process.env.PAR
 		console.log('Running Interval')
 		pm2.list(async (e, list) => {
 			if (e) return console.log(`Error getting pm2 list: ${e}`);
-		
+
+			// Frees up an led if a pm2 process is deleted.
+			for (const pm_id in appStatuses) {
+				if (!list.some(app => app.pm_id == pm_id)) {
+					await particle.callFunction(getOptions("setUndefined", appStatus.ledNum)).catch((e) => {
+						if (e.body.error == 'Timed out.') return;
+						console.log('error on particle.callFunction:', e);
+					});
+					availableLeds.push(appStatuses[pm_id].ledNum);
+					delete appStatuses[pm_id];
+				}
+			}
+
+			// Iterate through the list of processes and turn on LEDs to reflect their state.
 			for (const app of list) {
 				appStatus = appStatuses[app.pm_id]
 				if (!appStatus) {
